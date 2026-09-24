@@ -27,18 +27,55 @@ Standards included:
 
 All learner responses are **synthetic**. Reference grades are the author's judgement.
 
-## Run
+## Quickstart (WSL / Ubuntu)
+
+**1. Install Node.js 20 or later** (skip if `node --version` already shows v20+):
 
 ```sh
-cp .env.example .env        # add your TYPESAFE_API_KEY
-npm start                   # http://localhost:3000
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node --version
 ```
 
-This needs Node 20 or later and has no dependencies. The key stays server-side: `server.js`
-proxies `/api/systemone` to `https://api.typesafe.ai`.
+**2. Clone the repo and switch to the prototype branch.** The repo is private, so use an
+authenticated clone (GitHub CLI `gh auth login`, an SSH key, or a personal access token):
 
-`npm run mock` runs an offline heuristic stand-in so the UI can be shown without network
-access. The UI labels it **MOCK MODE: not Jev**, and its numbers mean nothing.
+```sh
+git clone https://github.com/cgbarlow/jev-test.git
+cd jev-test
+git checkout claude/exciting-darwin-2j247y
+```
+
+**3. Add your TypeSafe API key.** `.env` is gitignored, so the key is never committed:
+
+```sh
+cp .env.example .env
+nano .env        # set TYPESAFE_API_KEY=your-key
+```
+
+**4. Start the server.** There's nothing to `npm install`:
+
+```sh
+npm start
+```
+
+You should see `Jev marking prototype on http://localhost:3000 (jev-latest)`.
+
+**5. Open http://localhost:3000 in your Windows browser.** WSL forwards localhost
+automatically. Pick a standard, then click **Mark all scripts**.
+
+To demo without the API, run `npm run mock` instead. The UI shows **MOCK MODE: not Jev**, and
+its numbers are made up.
+
+### Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `Set TYPESAFE_API_KEY…` on start | `.env` is missing or the key line is empty |
+| Cards show `Error` mentioning auth or permission | The key is wrong, rotated, or lacks access |
+| Cards show `Error` with a model message | Set `TYPESAFE_MODEL` in `.env` to a model your account has |
+| `EADDRINUSE` | Port 3000 is taken: run `PORT=3001 npm start` |
+| Page won't load from Windows | Try `http://127.0.0.1:3000`, or run `wsl --shutdown` and start again |
 
 ## Caveats (from the research)
 

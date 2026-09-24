@@ -2,15 +2,15 @@
 
 > **NOT ENDORSED BY NZQA - CONCEPT ONLY.** See [DISCLAIMER.md](DISCLAIMER.md).
 
-A quick prototype of the highest-leverage opportunity in [the research](research/jev-nzqa-research.md):
+A quick prototype of the highest-leverage opportunity in [the research](research/jev-nzqa-research.md)
+(see also [the ATS pitch](research/jev-ats-pitch.md)):
 **AI-assisted marking for any standard from its written criteria alone**, with no labelled data
 and no model per standard. This targets the ATS "breadth" scaling problem and the cold-start
 problem for the long tail of low-volume standards.
 
-<img width="1269" height="938" alt="image" src="https://github.com/user-attachments/assets/9be48041-f703-4177-b890-013824f2aa37" />
+<img width="1269" height="938" alt="Marking screen: US 32405 script graded Achieved with per-criterion scores, confidence and auto-accept triage" src="https://github.com/user-attachments/assets/9be48041-f703-4177-b890-013824f2aa37" />
 
-<img width="1090" height="931" alt="image" src="https://github.com/user-attachments/assets/6440b473-e1aa-4974-aac9-bfa1a901a4f1" />
-
+<img width="1090" height="931" alt="Jev call log: each request sent and the response received, newest first" src="https://github.com/user-attachments/assets/6440b473-e1aa-4974-aac9-bfa1a901a4f1" />
 
 For each script, **one** TypeSafe Jev call (`POST /v1/systemone`) returns:
 
@@ -69,7 +69,7 @@ You should see `Jev marking prototype on http://localhost:3000 (jev-latest)`.
 **5. Open http://localhost:3000 in your Windows browser.** WSL forwards localhost
 automatically. Pick a standard, then click **Mark all scripts**.
 
-To demo without the API, run `npm run mock` instead. The UI shows **MOCK MODE: not Jev**, and
+To demo without the API, run `npm run mock` instead. The UI shows **MOCK MODE: not calling Jev**, and
 its numbers are made up.
 
 ### Seeing what Jev is actually doing

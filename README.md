@@ -7,6 +7,7 @@ problem for the long tail of low-volume standards.
 
 <img width="1287" height="946" alt="image" src="https://github.com/user-attachments/assets/f0407fa1-04bd-44d5-be93-2b29567e0118" />
 
+
 For each script, **one** TypeSafe Jev call (`POST /v1/systemone`) returns:
 
 - **Guardrails** (`noul`): is it a genuine attempt at the task, and does it need safeguarding

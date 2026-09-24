@@ -7,7 +7,9 @@ A quick prototype of the highest-leverage opportunity in [the research](research
 and no model per standard. This targets the ATS "breadth" scaling problem and the cold-start
 problem for the long tail of low-volume standards.
 
-<img width="1287" height="946" alt="image" src="https://github.com/user-attachments/assets/f0407fa1-04bd-44d5-be93-2b29567e0118" />
+<img width="1269" height="938" alt="image" src="https://github.com/user-attachments/assets/9be48041-f703-4177-b890-013824f2aa37" />
+
+<img width="1090" height="931" alt="image" src="https://github.com/user-attachments/assets/6440b473-e1aa-4974-aac9-bfa1a901a4f1" />
 
 
 For each script, **one** TypeSafe Jev call (`POST /v1/systemone`) returns:

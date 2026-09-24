@@ -1,0 +1,3 @@
+# Disclaimer
+
+**NOT ENDORSED BY NZQA - CONCEPT ONLY**

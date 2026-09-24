@@ -1,5 +1,7 @@
 # Rubric in, marks out: Jev × NZQA prototype
 
+> **NOT ENDORSED BY NZQA - CONCEPT ONLY.** See [DISCLAIMER.md](DISCLAIMER.md).
+
 A quick prototype of the highest-leverage opportunity in [the research](research/jev-nzqa-research.md):
 **AI-assisted marking for any standard from its written criteria alone**, with no labelled data
 and no model per standard. This targets the ATS "breadth" scaling problem and the cold-start

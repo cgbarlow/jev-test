@@ -24,8 +24,6 @@ header { padding: 28px 24px 8px; max-width: 1280px; margin: 0 auto; }
 h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
 h1 span { color: var(--accent); }
 .sub { color: var(--muted); margin: 4px 0 0; max-width: 780px; }
-.pill { display: inline-block; font: 12px var(--mono); padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); vertical-align: middle; margin-left: 8px; }
-.pill.mock { background: var(--warn-soft); color: var(--warn); }
 .notice { max-width: 1280px; margin: 12px auto 0; padding: 0 24px; }
 .notice div { font-size: 13px; color: var(--muted); border-left: 3px solid var(--warn); padding: 6px 10px; background: var(--panel); border-radius: 4px; }
 .stats { max-width: 1280px; margin: 16px auto; padding: 0 24px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
@@ -77,6 +75,28 @@ button.primary:disabled { opacity: 0.6; cursor: progress; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .add { margin-top: 4px; }
 .add button { margin-top: 8px; padding: 8px 12px; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 8px; font: 600 14px inherit; font-family: inherit; cursor: pointer; }
+.topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.topright { display: flex; align-items: center; gap: 10px; }
+.status { display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+.status b { display: block; font-size: 13px; }
+.status small { display: block; font-size: 11px; color: var(--muted); }
+.status .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+.status.live { border-color: var(--ok); } .status.live .dot { background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); }
+.status.down { border-color: var(--bad); background: var(--bad-soft); } .status.down .dot { background: var(--bad); }
+.status.mock { border-color: var(--warn); background: var(--warn-soft); } .status.mock .dot { background: var(--warn); }
+.status.checking .dot, .status.busy .dot { animation: pulse 0.9s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+.loglink { font-size: 13px; color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--panel); }
+table.trace { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+.trace th, .trace td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.trace th { color: var(--muted); font-weight: 600; }
+.trace td.num { font: 12px var(--mono); text-align: right; }
+.trace tr.best td:not([rowspan]) { background: var(--accent-soft); font-weight: 600; }
+.trace .muted { color: var(--muted); } .trace .bad { color: var(--bad); font-weight: 600; }
+.row.gap { gap: 10px; margin-bottom: 4px; }
+button.mini { padding: 4px 10px; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 6px; font: 600 12px inherit; font-family: inherit; cursor: pointer; }
+details summary { font-size: 12px; color: var(--muted); cursor: pointer; margin-bottom: 6px; }
+code { font: 12px var(--mono); }
 .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; padding: 0 16px 32px; }
@@ -91,7 +111,15 @@ button.primary:disabled { opacity: 0.6; cursor: progress; }
 </head>
 <body>
 <header>
-  <h1>Rubric in, <span>marks out</span> <span id="modelPill" class="pill">…</span></h1>
+  <div class="topbar">
+    <h1>Rubric in, <span>marks out</span></h1>
+    <div class="topright">
+      <button id="jevStatus" class="status checking" title="Click to re-run the health check (one tiny real Jev call)">
+        <i class="dot"></i><span><b id="jevText">Checking Jev…</b><small id="jevMeta"></small></span>
+      </button>
+      <a class="loglink" href="log.html" target="_blank">Call log ↗</a>
+    </div>
+  </div>
   <p class="sub">Any NCEA standard marked from its written criteria alone, with no training data and no model per standard. One Jev call per script returns the guardrail checks, a score for each criterion and the overall grade. Calibrated confidence decides what goes to a human marker.</p>
 </header>
 <div class="notice"><div>Prototype for a shadow trial. <b>Synthetic responses only</b>: Jev is US-hosted, so real learner work must not be sent until it is available in-region and a PIA is done. US 32405 criteria are paraphrased from its performance criteria 1.1–1.4 (verify against NZQA's published standard); the other two standards are illustrative.</div></div>

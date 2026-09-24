@@ -67,12 +67,29 @@ automatically. Pick a standard, then click **Mark all scripts**.
 To demo without the API, run `npm run mock` instead. The UI shows **MOCK MODE: not Jev**, and
 its numbers are made up.
 
+### Seeing what Jev is actually doing
+
+- **Status light (top right).** On page load the server makes one tiny real Jev call. Green
+  means the key, network and model all work, and shows the resolved model version (for
+  example `jev-1.13.0`). Red says why: key rejected, unreachable, or request rejected. Amber
+  means mock mode. The light pulses while calls are in flight and updates after every call.
+  Click it to check again.
+- **Per script.** Click a card to open it. You'll see:
+  - how each grade and criterion was read from Jev's answer: the index, the label we sent,
+    whether Jev's returned `legend` matches it, and the probability
+  - the exact request body sent
+  - the response exactly as received
+  - **Copy as curl**, which re-runs the identical request from your own shell
+- **Call log ↗** (`/log.html`) lists every call live, newest first. Every exchange is also
+  appended to `logs/jev-calls.jsonl`, which is gitignored and never contains the API key.
+  That file includes learner text, so the synthetic-only rule applies to it too.
+
 ### Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
 | `Set TYPESAFE_API_KEY…` on start | `.env` is missing or the key line is empty |
-| Cards show `Error` mentioning auth or permission | The key is wrong, rotated, or lacks access |
+| Red light: `key rejected (HTTP 401)` | The key is wrong, rotated, or lacks access |
 | Cards show `Error` with a model message | Set `TYPESAFE_MODEL` in `.env` to a model your account has |
 | `EADDRINUSE` | Port 3000 is taken: run `PORT=3001 npm start` |
 | Page won't load from Windows | Try `http://127.0.0.1:3000`, or run `wsl --shutdown` and start again |

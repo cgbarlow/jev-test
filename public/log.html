@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev Call Log</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #e3e6eb; --accent: #0b6e69; --accent-soft: #e2f1f0;
+  --ok: #1f7a3a; --ok-soft: #e4f3e8; --bad: #b3261e; --bad-soft: #fbe5e3; --warn: #9a5b00; --warn-soft: #fcf0dc;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --panel: #171b21; --ink: #e8ebef; --muted: #9aa3b0; --line: #2a3038; --accent: #4fc1b9; --accent-soft: #15302e;
+    --ok: #6fd08c; --ok-soft: #173222; --bad: #ff8a80; --bad-soft: #3a1a18; --warn: #f0b45a; --warn-soft: #33270f;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { margin: 0 0 4px; font-size: 22px; }
+.sub { color: var(--muted); margin: 0 0 16px; font-size: 13px; }
+.call { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+.head { display: grid; grid-template-columns: 48px 90px 1fr auto auto auto; gap: 12px; align-items: center; padding: 10px 14px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.id { font: 600 12px var(--mono); color: var(--muted); }
+.st { font: 600 12px var(--mono); padding: 2px 8px; border-radius: 99px; text-align: center; }
+.st.ok { background: var(--ok-soft); color: var(--ok); } .st.bad { background: var(--bad-soft); color: var(--bad); } .st.mock { background: var(--warn-soft); color: var(--warn); }
+.muted { color: var(--muted); font-size: 12px; }
+.body { display: none; padding: 0 14px 14px; border-top: 1px dashed var(--line); }
+.call.open .body { display: block; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 12px 0 4px; }
+pre { font: 11px/1.4 var(--mono); max-height: 480px; overflow: auto; background: var(--bg); padding: 10px; border-radius: 8px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+.empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
+@media (max-width: 800px) { .cols { grid-template-columns: 1fr; } .head { grid-template-columns: 40px 1fr auto; } .head .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Jev call log</h1>
+  <p class="sub">Every request the prototype server sent to Jev, with the response exactly as received, newest first. Refreshes every 2 seconds. The API key is never recorded. The server keeps the last 500 calls in memory, and every call is also appended to <code>logs/jev-calls.jsonl</code>.</p>
+  <div id="list"></div>
+</main>
+<script>
+const open = new Set();
+const details = {};
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pretty = (t) => { try { return JSON.stringify(JSON.parse(t), null, 2); } catch { return t; } };
+
+async function refresh() {
+  let calls;
+  try {
+    calls = await fetch("/api/log").then((r) => r.json());
+  } catch {
+    document.getElementById("list").innerHTML = `<div class="empty">Local server not reachable.</div>`;
+    return;
+  }
+  for (const id of open) if (!details[id]) details[id] = await fetch(`/api/log/${id}`).then((r) => r.json());
+  document.getElementById("list").innerHTML = calls.length
+    ? calls.map((c) => {
+        const cls = c.mock ? "mock" : c.status === 200 ? "ok" : "bad";
+        const d = details[c.id];
+        return `<div class="call ${open.has(c.id) ? "open" : ""}" data-id="${c.id}">
+          <div class="head"><span class="id">#${c.id}</span><span class="st ${cls}">${c.mock ? "MOCK" : c.status}</span>
+            <span>${esc(c.label || "–")}</span><span class="muted hide-sm">${esc(c.model || "")}</span>
+            <span class="muted">${c.ms} ms</span><span class="muted hide-sm">${new Date(c.at).toLocaleTimeString()}</span></div>
+          <div class="body">${d ? `<div class="muted" style="margin-top:8px">POST ${esc(d.url)} · ${esc(d.at)}</div>
+            <div class="cols"><div><label>Request sent</label><pre>${esc(pretty(d.requestBody))}</pre></div>
+            <div><label>Response received (formatted)</label><pre>${esc(pretty(d.responseText))}</pre>
+            <label>Response bytes, verbatim</label><pre>${esc(d.responseText)}</pre></div></div>` : "Loading…"}</div></div>`;
+      }).join("")
+    : `<div class="empty">No calls yet. Mark a script, or reload the main page to run a health check.</div>`;
+  document.querySelectorAll(".head").forEach((h) =>
+    h.addEventListener("click", () => {
+      const id = Number(h.parentElement.dataset.id);
+      open.has(id) ? open.delete(id) : open.add(id);
+      refresh();
+    })
+  );
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

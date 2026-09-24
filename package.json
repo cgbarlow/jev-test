@@ -1,0 +1,10 @@
+{
+  "name": "jev-nzqa-marking-prototype",
+  "private": true,
+  "description": "Prototype: any NCEA standard marked from its rubric by TypeSafe Jev, with confidence-based human triage",
+  "scripts": {
+    "start": "node server.js",
+    "mock": "JEV_MOCK=1 node server.js"
+  },
+  "engines": { "node": ">=20" }
+}

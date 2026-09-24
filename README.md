@@ -44,13 +44,11 @@ sudo apt-get install -y nodejs
 node --version
 ```
 
-**2. Clone the repo and switch to the prototype branch.** The repo is private, so use an
-authenticated clone (GitHub CLI `gh auth login`, an SSH key, or a personal access token):
+**2. Clone the repo.**
 
 ```sh
 git clone https://github.com/cgbarlow/jev-test.git
 cd jev-test
-git checkout claude/exciting-darwin-2j247y
 ```
 
 **3. Add your TypeSafe API key.** `.env` is gitignored, so the key is never committed:

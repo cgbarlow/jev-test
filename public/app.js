@@ -7,6 +7,10 @@ const state = {
   results: {}, // `${stdId}/${scriptId}` -> { status, answers, usage, ms, raw, error }
   threshold: 0.8,
   mock: false,
+  jev: null, // latest known Jev connection state
+  inFlight: 0,
+  calls: 0,
+  url: "",
 };
 
 const std = () => STANDARDS.find((s) => s.id === state.stdId);
@@ -53,19 +57,29 @@ function buildQuestions(s) {
 async function markScript(s, script) {
   const k = key(script);
   state.results[k] = { status: "pending" };
+  state.inFlight++;
   render();
+  renderStatus();
   const t0 = performance.now();
   try {
     const res = await fetch("/api/systemone", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        label: `${s.code.split(" ·")[0]} / ${script.id}`,
         state: { assessment_task: s.task, learner_response: script.text },
         questions: buildQuestions(s),
       }),
     });
+    const callId = res.headers.get("x-call-id");
+    const call = callId ? await fetch(`/api/log/${callId}`).then((r) => r.json()) : null;
     const body = await res.json();
-    if (!res.ok) throw new Error(body?.error?.message || body?.detail || body?.error || `HTTP ${res.status}`);
+    noteCall(res.ok, res.status, body?.model, callId);
+    if (!res.ok) {
+      const err = new Error(body?.error?.message || body?.detail?.message || (typeof body?.detail === "string" ? body.detail : body?.detail && JSON.stringify(body.detail)) || body?.error || `HTTP ${res.status}`);
+      err.call = call;
+      throw err;
+    }
     const upstream = Number(res.headers.get("x-upstream-ms"));
     state.results[k] = {
       status: "done",
@@ -73,12 +87,63 @@ async function markScript(s, script) {
       usage: body.usage,
       model: body.model,
       ms: Number.isFinite(upstream) ? upstream : performance.now() - t0,
-      raw: body,
+      call,
     };
   } catch (e) {
-    state.results[k] = { status: "error", error: typeof e.message === "string" ? e.message : JSON.stringify(e.message) };
+    if (!e.call) noteCall(false, 0, null, null, e.message);
+    state.results[k] = { status: "error", error: typeof e.message === "string" ? e.message : JSON.stringify(e.message), call: e.call };
   }
+  state.inFlight--;
   render();
+  renderStatus();
+}
+
+// ---- Jev connection status: a real health-check call on load, then updated by every call.
+function noteCall(ok, status, model, id, message) {
+  state.jev = {
+    ok,
+    at: new Date(),
+    model: model || state.jev?.model,
+    id,
+    detail: ok ? "" : message || explainStatus(status),
+  };
+  state.calls++;
+}
+
+function explainStatus(status) {
+  if (status === 401 || status === 403) return `key rejected (HTTP ${status})`;
+  if (status === 422) return "Jev rejected the request shape (HTTP 422)";
+  if (status === 429) return "rate limited (HTTP 429)";
+  if (status === 502) return "could not reach Jev (HTTP 502)";
+  return `HTTP ${status}`;
+}
+
+async function checkJev() {
+  state.jev = { checking: true };
+  renderStatus();
+  try {
+    const h = await fetch("/api/health", { method: "POST" }).then((r) => r.json());
+    state.mock = h.mock;
+    state.jev = { ok: h.ok, at: new Date(h.at), model: h.model, id: h.id, ms: h.ms, health: true, detail: h.ok ? "" : explainStatus(h.status) };
+  } catch {
+    state.jev = { ok: false, at: new Date(), detail: "local server not running" };
+  }
+  renderStatus();
+}
+
+function renderStatus() {
+  const j = state.jev;
+  const el = $("jevStatus");
+  let kind, text;
+  if (!j || j.checking) [kind, text] = ["checking", "Checking Jev…"];
+  else if (state.mock) [kind, text] = ["mock", "MOCK MODE: not calling Jev"];
+  else if (j.ok) [kind, text] = ["live", `Jev live · ${j.model ?? "?"}${j.health ? ` · ${j.ms} ms` : ""}`];
+  else [kind, text] = ["down", `Jev not working: ${j.detail}`];
+  el.className = `status ${kind}${state.inFlight ? " busy" : ""}`;
+  $("jevText").textContent = text;
+  $("jevMeta").textContent = j?.at
+    ? `${state.inFlight ? `${state.inFlight} call${state.inFlight > 1 ? "s" : ""} in flight · ` : ""}last ${j.health ? "health check" : "call"} ${j.at.toLocaleTimeString()}${j.id ? ` (#${j.id})` : ""} · click to re-check`
+    : "";
 }
 
 async function markAll() {
@@ -191,9 +256,55 @@ function renderCard(s, script) {
     <div class="chead"><div class="cid">${esc(script.id)}</div><div class="excerpt">${esc(script.text)}</div><div class="verdict">${verdict}</div></div>
     ${body}
     <div class="detail">${legend}<pre>${esc(script.text)}</pre>
-      ${r?.raw ? `<label>Raw Jev response</label><pre class="json">${esc(JSON.stringify(r.raw, null, 2))}</pre>` : ""}
-      <label>Request questions</label><pre class="json">${esc(JSON.stringify(buildQuestions(s), null, 2))}</pre>
+      ${r?.status === "done" ? traceTable(r, s) : ""}
+      ${r?.call ? callBlock(r.call) : ""}
     </div></div>`;
+}
+
+// ---- Audit trail: show how each number on the card was read from Jev's raw answer.
+function traceTable(r, s) {
+  const rows = [];
+  for (const [name, a] of Object.entries(r.answers)) {
+    if (a.type === "noul") {
+      const rule = name === "safeguarding" ? "escalate if ≥ 0.50" : name === "on_topic" ? "flag if < 0.50" : "";
+      rows.push(`<tr><td>${esc(name)}</td><td colspan="3">noul (probability the statement is true)</td><td class="num">${a.noul?.toFixed(2)}</td><td>${rule}</td></tr>`);
+      continue;
+    }
+    const sent = name === "grade" ? s.grades.map((g) => `${g.label}: ${g.desc}`) : s.levels;
+    const probs = Object.entries(a.probabilities ?? {});
+    const best = probs.reduce((m, e) => (e[1] > m[1] ? e : m), ["", -1])[0];
+    probs.forEach(([i, p], n) => {
+      const back = a.legend?.[i];
+      const ok = back === undefined ? "no legend returned" : back === sent[i] ? "✓ label matches" : `✗ MISMATCH: Jev says "${back}"`;
+      rows.push(`<tr class="${i === best ? "best" : ""}">
+        ${n === 0 ? `<td rowspan="${probs.length}">${esc(name)}<br><small>score ${a.score?.toFixed(2)} · confidence ${a.confidence?.toFixed(2)}</small></td>` : ""}
+        <td class="num">${esc(i)}</td><td>${esc(levelName(sent[i] ?? "?"))}</td>
+        <td class="${back !== undefined && back !== sent[i] ? "bad" : "muted"}">${esc(ok)}</td>
+        <td class="num">${Number(p).toFixed(2)}</td><td>${i === best ? "← highest" : ""}</td></tr>`);
+    });
+  }
+  return `<label>How the card was read from Jev's answer</label>
+    <div class="hint">Highlighted rows are the highest probability. The grade shown is that row's label. Triage uses Jev's own <code>confidence</code> field, which is not the same as the highest probability.</div>
+    <table class="trace"><tr><th>Question</th><th>Index</th><th>Label we sent</th><th>Legend check</th><th>Value</th><th></th></tr>${rows.join("")}</table>`;
+}
+
+function callBlock(c) {
+  const pretty = (t) => {
+    try {
+      return JSON.stringify(JSON.parse(t), null, 2);
+    } catch {
+      return t;
+    }
+  };
+  return `<label>Call #${c.id} · ${esc(c.at)} · HTTP ${c.status} · ${c.ms} ms · ${esc(c.url)}</label>
+    <div class="row gap"><button class="mini" data-curl="${c.id}">Copy as curl</button><span class="hint">Re-runs this exact request outside the app. Needs <code>TYPESAFE_API_KEY</code> set in your shell.</span></div>
+    <label>Exact request sent to Jev</label><pre class="json">${esc(pretty(c.requestBody))}</pre>
+    <label>Raw response from Jev (formatted)</label><pre class="json">${esc(pretty(c.responseText))}</pre>
+    <details><summary>Response bytes exactly as received</summary><pre class="json">${esc(c.responseText)}</pre></details>`;
+}
+
+function curlFor(c) {
+  return `curl -sS ${c.url} \\\n  -H "Authorization: Bearer $TYPESAFE_API_KEY" \\\n  -H 'Content-Type: application/json' \\\n  --data-binary @- <<'JEV_EOF'\n${c.requestBody}\nJEV_EOF`;
 }
 
 function renderStats() {
@@ -219,6 +330,13 @@ function render() {
   const s = std();
   $("results").innerHTML = s.samples.map((x) => renderCard(s, x)).join("");
   $("results").querySelectorAll(".chead").forEach((h) => h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
+  $("results").querySelectorAll("[data-curl]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const r = Object.values(state.results).find((x) => x.call?.id === Number(b.dataset.curl));
+      await navigator.clipboard.writeText(curlFor(r.call));
+      b.textContent = "Copied ✓";
+    })
+  );
   renderStats();
 }
 
@@ -248,10 +366,11 @@ fetch("/api/config")
   .then((r) => r.json())
   .then((c) => {
     state.mock = c.mock;
-    $("modelPill").textContent = c.mock ? "MOCK MODE: not Jev" : c.model;
-    $("modelPill").classList.toggle("mock", c.mock);
+    state.url = c.url;
   })
-  .catch(() => ($("modelPill").textContent = "server offline"));
+  .catch(() => {});
+$("jevStatus").addEventListener("click", checkJev);
+checkJev();
 
 $("thrVal").textContent = pct(state.threshold);
 loadRubric();

@@ -36,6 +36,7 @@ pre { font: 11px/1.4 var(--mono); max-height: 480px; overflow: auto; background:
 .labelrow label { margin: 0; }
 .copy { font: 600 11px system-ui, sans-serif; color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; border-radius: 6px; padding: 0 8px; line-height: 15px; cursor: pointer; }
 .copy:hover { border-color: var(--accent); }
+.copies { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .copy.done { color: var(--ok); background: var(--ok-soft); }
 .copy.fail { color: var(--bad); background: var(--bad-soft); }
 .empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
@@ -51,7 +52,21 @@ pre { font: 11px/1.4 var(--mono); max-height: 480px; overflow: auto; background:
 <script>
 const open = new Set();
 const details = {};
-const copyState = {}; // id -> "done" | "fail", survives the 2s re-render
+const copyState = {}; // "id:part" -> "done" | "fail", survives the 2s re-render
+// The Playground takes state and questions in separate boxes (the model comes from its picker),
+// so each gets its own button; "request" is the whole body for curl / API use.
+const COPY_PARTS = [["state", "Copy state"], ["questions", "Copy questions"], ["request", "Copy request"]];
+const copyButtons = (id) =>
+  COPY_PARTS.map(([part, text]) => {
+    const st = copyState[`${id}:${part}`];
+    return `<button type="button" class="copy ${st || ""}" data-copy="${id}" data-part="${part}">${st === "done" ? "Copied" : st === "fail" ? "Copy failed" : text}</button>`;
+  }).join("");
+function copyPayload(requestBody, part) {
+  if (part === "request") return pretty(requestBody);
+  const value = JSON.parse(requestBody)[part];
+  // A plain-text state (e.g. the health check) pastes as its text, not as a quoted JSON string.
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pretty = (t) => { try { return JSON.stringify(JSON.parse(t), null, 2); } catch { return t; } };
 
@@ -74,7 +89,7 @@ async function refresh() {
             <span class="muted">${c.ms} ms</span><span class="muted hide-sm">${new Date(c.at).toLocaleTimeString()}</span></div>
           <div class="body">${d ? `<div class="muted" style="margin-top:8px">POST ${esc(d.url)} · ${esc(d.at)}</div>
             <div class="cols"><div><div class="labelrow"><label>Request sent</label>
-              <button type="button" class="copy ${copyState[c.id] || ""}" data-copy="${c.id}">${copyState[c.id] === "done" ? "Copied" : copyState[c.id] === "fail" ? "Copy failed" : "Copy"}</button></div><pre>${esc(pretty(d.requestBody))}</pre></div>
+              <span class="copies">${copyButtons(c.id)}</span></div><pre>${esc(pretty(d.requestBody))}</pre></div>
             <div><label>Response received (formatted)</label><pre>${esc(pretty(d.responseText))}</pre>
             <label>Response bytes, verbatim</label><pre>${esc(d.responseText)}</pre></div></div>` : "Loading…"}</div></div>`;
       }).join("")
@@ -104,15 +119,15 @@ async function copyText(text) {
 document.getElementById("list").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-copy]");
   if (!btn) return;
-  const id = Number(btn.dataset.copy);
+  const key = `${btn.dataset.copy}:${btn.dataset.part}`;
   try {
-    await copyText(pretty(details[id].requestBody));
-    copyState[id] = "done";
+    await copyText(copyPayload(details[Number(btn.dataset.copy)].requestBody, btn.dataset.part));
+    copyState[key] = "done";
   } catch {
-    copyState[id] = "fail";
+    copyState[key] = "fail";
   }
   refresh();
-  setTimeout(() => { delete copyState[id]; refresh(); }, 1500);
+  setTimeout(() => { delete copyState[key]; refresh(); }, 1500);
 });
 
 refresh();

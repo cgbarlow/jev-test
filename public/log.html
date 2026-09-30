@@ -32,6 +32,12 @@ h1 { margin: 0 0 4px; font-size: 22px; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 12px 0 4px; }
 pre { font: 11px/1.4 var(--mono); max-height: 480px; overflow: auto; background: var(--bg); padding: 10px; border-radius: 8px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+.labelrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
+.labelrow label { margin: 0; }
+.copy { font: 600 11px system-ui, sans-serif; color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; border-radius: 6px; padding: 0 8px; line-height: 15px; cursor: pointer; }
+.copy:hover { border-color: var(--accent); }
+.copy.done { color: var(--ok); background: var(--ok-soft); }
+.copy.fail { color: var(--bad); background: var(--bad-soft); }
 .empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
 @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } .head { grid-template-columns: 40px 1fr auto; } .head .hide-sm { display: none; } }
 </style>
@@ -45,6 +51,7 @@ pre { font: 11px/1.4 var(--mono); max-height: 480px; overflow: auto; background:
 <script>
 const open = new Set();
 const details = {};
+const copyState = {}; // id -> "done" | "fail", survives the 2s re-render
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pretty = (t) => { try { return JSON.stringify(JSON.parse(t), null, 2); } catch { return t; } };
 
@@ -66,7 +73,8 @@ async function refresh() {
             <span>${esc(c.label || "–")}</span><span class="muted hide-sm">${esc(c.model || "")}</span>
             <span class="muted">${c.ms} ms</span><span class="muted hide-sm">${new Date(c.at).toLocaleTimeString()}</span></div>
           <div class="body">${d ? `<div class="muted" style="margin-top:8px">POST ${esc(d.url)} · ${esc(d.at)}</div>
-            <div class="cols"><div><label>Request sent</label><pre>${esc(pretty(d.requestBody))}</pre></div>
+            <div class="cols"><div><div class="labelrow"><label>Request sent</label>
+              <button type="button" class="copy ${copyState[c.id] || ""}" data-copy="${c.id}">${copyState[c.id] === "done" ? "Copied" : copyState[c.id] === "fail" ? "Copy failed" : "Copy"}</button></div><pre>${esc(pretty(d.requestBody))}</pre></div>
             <div><label>Response received (formatted)</label><pre>${esc(pretty(d.responseText))}</pre>
             <label>Response bytes, verbatim</label><pre>${esc(d.responseText)}</pre></div></div>` : "Loading…"}</div></div>`;
       }).join("")
@@ -79,6 +87,34 @@ async function refresh() {
     })
   );
 }
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  // Fallback for plain-http access from another machine, where the Clipboard API is unavailable.
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  ta.remove();
+  if (!ok) throw new Error("copy failed");
+}
+
+document.getElementById("list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const id = Number(btn.dataset.copy);
+  try {
+    await copyText(pretty(details[id].requestBody));
+    copyState[id] = "done";
+  } catch {
+    copyState[id] = "fail";
+  }
+  refresh();
+  setTimeout(() => { delete copyState[id]; refresh(); }, 1500);
+});
+
 refresh();
 setInterval(refresh, 2000);
 </script>
